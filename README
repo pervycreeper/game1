@@ -1,0 +1,9 @@
+I am a novice programmer trying to simultaneously learn c, game development, procedural sound design, and git/ collaborative development.
+
+Eventually, I want to bring this project up to a high coding standard, as I learn what that means.
+
+This project will be a basic raycasting-style game with mostly procedurally generated content.
+
+So far (planned), it will depend on/ use SDL and libpd.
+
+The parts I write myself will be licensed according to the GPLv2

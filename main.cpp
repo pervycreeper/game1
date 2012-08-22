@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <math.h>
 
+
+#define len2v(a,b) sqrt(a*a+b*b)
+
 const int mapWidth = 24;
 const int mapHeight= 24;
 
@@ -62,6 +65,7 @@ SDL_Surface* hello = NULL;
 void drawbackground(double viewdir, SDL_Surface* backimg);
 struct inputstate getstate(struct inputstate curstate);
 bool updateworld ( struct inputstate curstate, double expectedtime);
+void mover (double velx, double vely);
 
 SDL_Surface* prescreen = NULL; 
 
@@ -129,6 +133,8 @@ int main( int argc, char* args[] )
 	bool mainloopdone = false;
 	long long a = SDL_GetTicks();
 
+	long long b = a;
+
 	while (!mainloopdone)
 	{
 		oldstate = curstate;
@@ -139,9 +145,7 @@ int main( int argc, char* args[] )
 		prescreen = renderFrame(prescreen, playerx , playery, cos(playerangle) , sin(playerangle));
 		frametime [(framecount % 3)] = SDL_GetTicks()-a;
 		a = SDL_GetTicks(); 
-		printf("%d, %d, %d, %f, %d FPS\n", frametime[0], framecount, expectedtime, int(1000.0/expectedtime) ); //time frame
-
-		//finally, draw screen
+	//	printf("%d, %d, %d, %f, %d FPS, %f\n", frametime[0], framecount, expectedtime, int(1000.0/expectedtime), float(a-b)/framecount ); 
 		SDL_BlitSurface(prescreen , NULL, screen, NULL );
 		SDL_Flip( screen );
 		framecount++;
@@ -235,6 +239,8 @@ struct inputstate getstate(struct inputstate curstate ){
 }
 
 bool updateworld ( struct inputstate curstate, double expectedtime){
+	double velx = 0.0;
+	double vely = 0.0;
 	double runconst;
 	if (curstate.run== true){
 		runconst = 1.0;}
@@ -247,21 +253,21 @@ bool updateworld ( struct inputstate curstate, double expectedtime){
 		return true;}
 
 	if (curstate.up== true){
-		playerx += speed * cos(playerangle);
-		playery += speed * sin(playerangle);}
-
-
+		velx = speed * cos(playerangle);
+		vely = speed * sin(playerangle);
+	}
 	if (curstate.down== true){
-		playerx -= speed * cos(playerangle);
-		playery -= speed * sin(playerangle);}
+		velx = -1.0 * speed * cos(playerangle);
+		vely = -1.0 * speed * sin(playerangle);}
 
 	if (curstate.leftstrafe== true){
-		playerx += speed * sin(playerangle);
-		playery -= speed * cos(playerangle);}
-
+		velx = speed * sin(playerangle);
+		vely = -1.0 * speed * cos(playerangle);
+	}
 	if (curstate.rightstrafe== true){
-		playerx -= speed * sin(playerangle);
-		playery += speed * cos(playerangle);}
+		velx = -1.0 * speed * sin(playerangle);
+		vely = speed * cos(playerangle);
+	}
 	if (curstate.left== true){
 		playerangle-=rotspeed;
 		if (playerangle<0.0){
@@ -274,7 +280,99 @@ bool updateworld ( struct inputstate curstate, double expectedtime){
 			playerangle -= tau;
 		}
 	}
+
+	mover (velx, vely);
+
 	return false;
+}
+
+
+
+void mover (double velx, double vely){
+	int cursquarex = int (playerx);
+	int cursquarey = int (playery);
+	double xdist, ydist;
+	signed int xsign, ysign;
+	int c;
+	double interceptx, intercepty;
+	bool hitx = false;
+	bool hity = false;
+	double l = len2v(velx, vely);
+	double m;
+
+	if (l < 0.00001){ //arbitrary small number, breaks if fps is huge
+		return;
+	}
+
+	int okay = 1;
+
+	//go through this in case we go through a corner, or have a really high speed (more than one unit traversed in a frame)
+	//yes, overkill, but will be correct in all cases
+	//may implement different logic from the similar alg. in the drawing function, so keeping these separate
+	if (velx >= 0){
+		xsign=1;
+	}
+	else{
+		xsign= -1;
+	}
+	if (vely >= 0) {
+		ysign=1;
+	}
+	else{
+		ysign=-1;
+	}
+
+	if ( (velx != 0) || (vely != 0)) {
+		do{
+				if (velx == 0.0){
+					xdist = 2.0;
+				}
+				else{
+					xdist=(cursquarex+(1+xsign)/2-playerx)/velx;
+				}
+				if (vely == 0.0){
+					ydist = 2.0;
+				}
+				else{
+					ydist=(cursquarey+(1+ysign)/2-playery)/vely;
+				}
+
+				if (xdist > ydist){
+					cursquarey += ysign;
+					hitx = false;
+				}
+				else{
+					cursquarex += xsign;
+					hitx = true;
+				}
+				if ( 0 != worldMap[cursquarex][cursquarey]){
+					okay = 0;
+				}
+		if (hitx){
+			// order matters here, n.b.
+			interceptx= double (cursquarex +(1-xsign)/2) ;
+			intercepty= playery + (interceptx-playerx)*vely/velx;
+		}
+		else{
+			intercepty= double (cursquarey +(1-ysign)/2);
+			interceptx= playerx + (intercepty-playery)*velx/vely;
+		}
+		m = len2v ((interceptx-playerx), (intercepty-playery)) ;		
+		printf("%f, %f, %d, %d , %f, %f, %d\n", l, len2v ((cursquarex+(1+xsign)/2-playerx),(cursquarey+(1+ysign)/2-playery)), cursquarex, cursquarey, playerx, playery, okay ); 
+		} while (okay !=0 && (l > m));
+	}
+
+	if (okay == 1){
+		playerx += velx;
+		playery += vely;
+	}
+	else{
+		if (hitx) {mover (0, vely/2);}
+		else {mover (velx/2, 0);}
+		//something along these lines for a soft landing/ partial movement
+	}
+
+
 }
 
 void drawbackground(double viewdir, SDL_Surface* backimg){
